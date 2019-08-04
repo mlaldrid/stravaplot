@@ -51,9 +51,10 @@ def load_activities(data_dir, activities_meta, resample_freq):
     """
     Load all Strava activities of the given type, resampled to the given frequency.
     :param data_dir: directory with strava exported data
-    :param activities_meta:
-    :param resample_freq:
-    :return:
+    :param activities_meta: list of activity metadata dicts
+    :param resample_freq: frequency for resampling GPX tracks, in pandas-acceptable
+    format (e.g., '15S' for 15 seconds)
+    :return: list of activities (metadata dict + track DataFrame)
     """
     activities = []
     for activity in copy.deepcopy(activities_meta):
@@ -71,10 +72,10 @@ def load_activities(data_dir, activities_meta, resample_freq):
 
 def normalize_timestamps(activities, timezone='America/New_York'):
     """
-
-    :param activities:
-    :param timezone:
-    :return:
+    Convert timestamps to the given timezone and reformat as 'HH:MM:SS'.
+    :param activities: list of activities
+    :param timezone: target timezone for all activities' timestamps
+    :return: list of activities with normalized timestamps (in-place updates)
     """
     for activity in activities:
         df = activity['track']
@@ -87,11 +88,12 @@ def normalize_timestamps(activities, timezone='America/New_York'):
 
 def filter_activities_by_origin(activities, target, distance_mi):
     """
-
-    :param activities:
-    :param target:
-    :param distance_mi:
-    :return:
+    Generator for filtering activities by the lat/lon of the first tracked
+    point.
+    :param activities: list of activities
+    :param target: (lat, lon) tuple for origin filter
+    :param distance_mi: origin filter distance in miles
+    :return: filtered activities
     """
     for activity in activities:
         start_pt = activity['track'].iloc[0]
@@ -120,12 +122,12 @@ def calc_bounds(activity_tracks, lat_pad=0.01, lon_pad=0.01):
 
 def init_artists(fig, xlim, ylim, n_rides):
     """
-
-    :param fig:
-    :param xlim:
-    :param ylim:
-    :param n_rides:
-    :return:
+    Initialize matplotlib artists for composing the animation.
+    :param fig: matplotlib Figure
+    :param xlim: xlim tuple for matplotlib Axes
+    :param ylim: ylim tuple for matplotlib Axes
+    :param n_rides: number of rides/tracks to be animated
+    :return: list of artists: (timestamp, "leader" dot, track histories)
     """
     ax = plt.axes(xlim=xlim, ylim=ylim)
     ax.set_aspect('equal')
@@ -154,9 +156,9 @@ def init_artists(fig, xlim, ylim, n_rides):
 
 def init_frame(artists):
     """
-
-    :param artists:
-    :return:
+    Create initial frame for FuncAnimation animator.
+    :param artists: list of artists
+    :return: list of artists with initial frame data set
     """
     time_artist, head_artist, *ride_artists = artists
     time_artist.set_text('')
@@ -168,10 +170,12 @@ def init_frame(artists):
 
 def gen_time_indices(all_rides, step_interval):
     """
-
-    :param all_rides:
-    :param step_interval:
-    :return:
+    Generate time indices for animation, spanning from the earliest ride's
+    start to the last ride's end, in the specified step interval (e.g.,
+    '15S' for 15 second increments).
+    :param all_rides: list of rides/activities
+    :param step_interval: step interval for generated timestamps
+    :return: list of timestamps ('HH:MM:SS' format)
     """
     start = min([r.index.min() for r in all_rides])
     end = max([r.index.max() for r in all_rides])
@@ -186,10 +190,11 @@ def gen_time_indices(all_rides, step_interval):
 
 def get_point(ride, time_idx):
     """
-
-    :param ride:
-    :param time_idx:
-    :return:
+    Get GPX track point from a ride for a given time index.
+    :param ride: ride DataFrame
+    :param time_idx: time index
+    :return: GPX track point for time index, or None if no point exists at
+    that time
     """
     try:
         return ride.loc[time_idx]
@@ -199,11 +204,11 @@ def get_point(ride, time_idx):
 
 def update_artists(artists, rides, time_idx):
     """
-
-    :param artists:
-    :param rides:
-    :param time_idx:
-    :return:
+    Update all artists for the given time index.
+    :param artists: list of artists
+    :param rides: list of rides / activities
+    :param time_idx: time index for artists to draw
+    :return: list of artists
     """
     time_artist, head_artist, *ride_artists = artists
     time_artist.set_text(time_idx[:5])
@@ -225,10 +230,11 @@ def update_artists(artists, rides, time_idx):
 
 def setup_animation(activities, step_interval):
     """
-
-    :param activities:
-    :param step_interval:
-    :return:
+    Set up data structures and a matplotlib FuncAnimation instance for
+    animating a list of activities.
+    :param activities: list of activities
+    :param step_interval: step interval for animation (e.g., '15S')
+    :return: FuncAnimation instance
     """
     # Set up objects and functions for matplotlib FuncAnimation process
     xlim, ylim = calc_bounds(activities)
