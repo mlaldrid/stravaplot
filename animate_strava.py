@@ -22,7 +22,7 @@ def load_activities_metadata(data_dir, activity_type=None):
     """
 
     def type_filter(d):
-        return d['type'].lower() == activity_type.lower() if activity_type else True
+        return d['Activity Type'].lower() == activity_type.lower() if activity_type else True
 
     activities_csv = Path(data_dir) / 'activities.csv'
     with activities_csv.open() as f:
@@ -58,7 +58,7 @@ def load_activities(data_dir, activities_meta, resample_freq):
     """
     activities = []
     for activity in copy.deepcopy(activities_meta):
-        gpx_path = Path(data_dir) / activity['filename']
+        gpx_path = Path(data_dir) / activity['Filename']
 
         if gpx_path.is_file():
             gpx_df = load_gpx(gpx_path)
