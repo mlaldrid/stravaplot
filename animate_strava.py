@@ -102,31 +102,31 @@ def filter_activities_by_origin(activities, target, distance_mi):
             yield activity
 
 
-def calc_bounds(activity_tracks, lat_pad=0.01, lon_pad=0.01):
+def calc_bounds(tracks, lat_pad=0.01, lon_pad=0.01):
     """
     Calculate the latitude/longitude bounds of a collection of activity tracks,
     with some padding.
-    :param activity_tracks: collection of activity track DataFrames
+    :param tracks: collection of track DataFrames
     :param lat_pad: amount to pad latitude boundaries
     :param lon_pad: amount to pad longitude boundaries
     :return: (xlim, ylim) tuple appropriate for matplotlib
     """
-    min_lat = min([act['lat'].min() for act in activity_tracks])
-    min_lon = min([act['lon'].min() for act in activity_tracks])
-    max_lat = max([act['lat'].max() for act in activity_tracks])
-    max_lon = max([act['lon'].max() for act in activity_tracks])
+    min_lat = min([act['lat'].min() for act in tracks])
+    min_lon = min([act['lon'].min() for act in tracks])
+    max_lat = max([act['lat'].max() for act in tracks])
+    max_lon = max([act['lon'].max() for act in tracks])
     xlim = [min_lon - lon_pad, max_lon + lon_pad]
     ylim = [min_lat - lat_pad, max_lat + lat_pad]
     return xlim, ylim
 
 
-def init_artists(fig, xlim, ylim, n_rides):
+def init_artists(fig, xlim, ylim, n_tracks):
     """
     Initialize matplotlib artists for composing the animation.
     :param fig: matplotlib Figure
     :param xlim: xlim tuple for matplotlib Axes
     :param ylim: ylim tuple for matplotlib Axes
-    :param n_rides: number of rides/tracks to be animated
+    :param n_tracks: number of tracks to be animated
     :return: list of artists: (timestamp, "leader" dot, track histories)
     """
     ax = plt.axes(xlim=xlim, ylim=ylim)
@@ -147,7 +147,7 @@ def init_artists(fig, xlim, ylim, n_rides):
         ),
         ax.scatter([], [], color='red', s=40, zorder=4, animated=True),
     ]
-    for _ in range(n_rides):
+    for _ in range(n_tracks):
         artists.append(
             ax.plot([], [], color='deepskyblue', lw=0.5, alpha=0.7, animated=True)[0]
         )
@@ -160,25 +160,25 @@ def init_frame(artists):
     :param artists: list of artists
     :return: list of artists with initial frame data set
     """
-    time_artist, head_artist, *ride_artists = artists
+    time_artist, head_artist, *track_artists = artists
     time_artist.set_text('')
     head_artist.set_offsets(ndarray(shape=(0, 2)))
-    for artist in ride_artists:
+    for artist in track_artists:
         artist.set_data([], [])
     return artists
 
 
-def gen_time_indices(all_rides, step_interval):
+def gen_time_indices(all_tracks, step_interval):
     """
-    Generate time indices for animation, spanning from the earliest ride's
-    start to the last ride's end, in the specified step interval (e.g.,
+    Generate time indices for animation, spanning from the earliest track's
+    start to the last tracks's end, in the specified step interval (e.g.,
     '15S' for 15 second increments).
-    :param all_rides: list of rides/activities
+    :param all_tracks: list of tracks
     :param step_interval: step interval for generated timestamps
     :return: list of timestamps ('HH:MM:SS' format)
     """
-    start = min([r.index.min() for r in all_rides])
-    end = max([r.index.max() for r in all_rides])
+    start = min([r.index.min() for r in all_tracks])
+    end = max([r.index.max() for r in all_tracks])
     # Make some fake dates to get pandas to generate a time range, then strip date component
     dt_range = pd.date_range(
         start='2000/01/01T{}'.format(start),
@@ -188,33 +188,33 @@ def gen_time_indices(all_rides, step_interval):
     return [dt.strftime('%H:%M:%S') for dt in dt_range]
 
 
-def get_point(ride, time_idx):
+def get_point(track, time_idx):
     """
-    Get GPX track point from a ride for a given time index.
-    :param ride: ride DataFrame
+    Get GPX track point from a track for a given time index.
+    :param track: track DataFrame
     :param time_idx: time index
     :return: GPX track point for time index, or None if no point exists at
     that time
     """
     try:
-        return ride.loc[time_idx]
+        return track.loc[time_idx]
     except KeyError:
         return None
 
 
-def update_artists(artists, rides, time_idx):
+def update_artists(artists, tracks, time_idx):
     """
     Update all artists for the given time index.
     :param artists: list of artists
-    :param rides: list of rides / activities
+    :param tracks: list of tracks
     :param time_idx: time index for artists to draw
     :return: list of artists
     """
-    time_artist, head_artist, *ride_artists = artists
+    time_artist, head_artist, *track_artists = artists
     time_artist.set_text(time_idx[:5])
     head_lonlat = []
-    for artist, ride in zip(ride_artists, rides):
-        point = get_point(ride, time_idx)
+    for artist, track in zip(track_artists, tracks):
+        point = get_point(track, time_idx)
         if point is not None:
             lon, lat = artist.get_data()
             lon.append(point['lon'])
@@ -228,22 +228,22 @@ def update_artists(artists, rides, time_idx):
     return artists
 
 
-def setup_animation(activities, step_interval):
+def setup_animation(tracks, step_interval):
     """
     Set up data structures and a matplotlib FuncAnimation instance for
-    animating a list of activities.
-    :param activities: list of activities
+    animating a list of track DataFrames.
+    :param tracks: list of track DataFrames
     :param step_interval: step interval for animation (e.g., '15S')
     :return: FuncAnimation instance
     """
     # Set up objects and functions for matplotlib FuncAnimation process
-    xlim, ylim = calc_bounds(activities)
-    indices = gen_time_indices(activities, step_interval)
+    xlim, ylim = calc_bounds(tracks)
+    indices = gen_time_indices(tracks, step_interval)
     fig = plt.figure(figsize=(5, 12))
-    artists = init_artists(fig, xlim, ylim, len(activities))
+    artists = init_artists(fig, xlim, ylim, len(tracks))
     init = partial(init_frame, artists)
     frames = lambda: indices
-    update = partial(update_artists, artists, activities)
+    update = partial(update_artists, artists, tracks)
 
     ani = FuncAnimation(
         fig,
