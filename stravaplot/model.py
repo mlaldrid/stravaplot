@@ -1,8 +1,9 @@
 import copy
 import csv
+import gzip
 from collections import namedtuple
+from datetime import timezone
 
-import logging
 from pathlib import Path
 
 import fitparse
@@ -18,7 +19,7 @@ def load_activities_metadata(data_dir, activity_type=None):
     activities.csv file is located)
     :param activity_type: set to limit the loaded activities to only one
     activity type (e.g., 'Ride'), or set to None to load all activities
-    :return: list of metadata dicts
+    :return: metadata DataFrame
     """
 
     def type_filter(d):
@@ -27,14 +28,15 @@ def load_activities_metadata(data_dir, activity_type=None):
     activities_csv = Path(data_dir) / 'activities.csv'
     with activities_csv.open() as f:
         reader = csv.DictReader(f)
-        activities_meta = [d for d in reader if type_filter(d)]
+        activities_meta = pd.DataFrame([d for d in reader if type_filter(d)])
+    activities_meta['Activity Date'] = pd.to_datetime(activities_meta['Activity Date'])
     return activities_meta
 
 
 def load_gpx(gpx_file):
     """
     Load a GPX file and return the activity track as a DataFrame.
-    :param gpx_path: pathlib.Path object for GPX file
+    :param gpx_file: GPX file object
     :return: DataFrame object with GPX track points
     """
     gpx = gpxpy.parse(gpx_file)
@@ -53,7 +55,7 @@ def load_fit(fit_file):
         for record in fit.get_messages('record'):
             d = record.get_values()
             data.append(Point(
-                ts=d.get('timestamp'),
+                ts=d.get('timestamp').replace(tzinfo=timezone.utc),
                 lat=d.get('position_lat'),
                 lon=d.get('position_long'),
                 alt=d.get('enhanced_altitude'),
@@ -67,37 +69,54 @@ def load_activities(data_dir, activities_meta, resample_freq):
     """
     Load all Strava activities of the given type, resampled to the given frequency.
     :param data_dir: directory with strava exported data
-    :param activities_meta: list of activity metadata dicts
+    :param activities_meta: activity metadata DataFrame
     :param resample_freq: frequency for resampling GPX tracks, in pandas-acceptable
     format (e.g., '15S' for 15 seconds)
-    :return: list of activities (metadata dict + track DataFrame)
+    :return: activity meta DataFrame with track DataFrame embedded
     """
-    activities = []
-    for activity in copy.deepcopy(activities_meta):
-        gpx_path = Path(data_dir) / activity['Filename']
+    # TODO clean all this up; don't modify in place
+    tracks = []
+    for _, activity in activities_meta.iterrows():
+        file_path = Path(data_dir) / activity['Filename']
 
-        if gpx_path.is_file():
-            try:
-                gpx_df = load_gpx(gpx_path)
-            except:
-                logging.exception(gpx_path)
-                raise
+        if file_path.is_file():
+            suffixes = file_path.suffixes
+            if '.gpx' in suffixes:
+                if suffixes[-1] == '.gz':
+                    with gzip.open(file_path) as f:
+                        df = load_gpx(f)
+                else:
+                    with open(file_path) as f:
+                        df = load_gpx(f)
+            elif '.fit' in suffixes:
+                if suffixes[-1] == '.gz':
+                    with gzip.open(file_path) as f:
+                        df = load_fit(f)
+                else:
+                    with open(file_path) as f:
+                        df = load_fit(f)
+            else:
+                raise ValueError(f'unknown file type: {file_path}')
+
+            # Strip any points with unknown lat/lon
+            df = df[~(df['lat'].isna() | df['lon'].isna())]
+
             # Resample the timeseries to reduce number of animated frames
-            gpx_df = gpx_df.resample(resample_freq).nearest(limit=1)
-            activity['track'] = gpx_df
-            activities.append(activity)
+            df = df.resample(resample_freq).nearest(limit=1)
+            tracks.append(df)
 
-    return activities
+    activities_meta['track'] = tracks
+    return activities_meta
 
 
 def normalize_timestamps(activities, timezone='America/New_York'):
     """
     Convert timestamps to the given timezone and reformat as 'HH:MM:SS'.
-    :param activities: list of activities
+    :param activities: activities DataFrame
     :param timezone: target timezone for all activities' timestamps
     :return: list of activities with normalized timestamps (in-place updates)
     """
-    for activity in activities:
+    for _, activity in activities.iterrows():
         df = activity['track']
         # Convert activity's timestamp index to local timezone
         df.index = df.index.tz_convert(timezone)
@@ -115,7 +134,7 @@ def filter_activities_by_origin(activities, target, distance_mi):
     :param distance_mi: origin filter distance in miles
     :return: filtered activities
     """
-    for activity in activities:
+    for _, activity in activities.iterrows():
         start_pt = activity['track'].iloc[0]
         origin = (start_pt['lat'], start_pt['lon'])
         if distance.distance(origin, target).miles < distance_mi:
