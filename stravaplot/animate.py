@@ -1,8 +1,9 @@
 from functools import partial
-from matplotlib.animation import FuncAnimation
+
 import matplotlib.pyplot as plt
-from numpy import ndarray
 import pandas as pd
+from matplotlib.animation import FuncAnimation
+from numpy import ndarray
 
 
 def calc_bounds(tracks, lat_pad=0.01, lon_pad=0.01):

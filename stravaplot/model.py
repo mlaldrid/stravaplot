@@ -1,18 +1,20 @@
-import copy
 import csv
+import datetime
 import gzip
 from collections import namedtuple
-from datetime import timezone
-
 from pathlib import Path
+from typing import IO
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
 import fitparse
-from geopy import distance
 import gpxpy
 import pandas as pd
+from geopy import distance
 
 
-def load_activities_metadata(data_dir, activity_type=None):
+def load_activities_metadata(data_dir: str, activity_type: Optional[str] = None) -> pd.DataFrame:
     """
     Load metadata from Strava exported activities.csv file.
     :param data_dir: directory with strava exported data (where the
@@ -33,7 +35,7 @@ def load_activities_metadata(data_dir, activity_type=None):
     return activities_meta
 
 
-def load_gpx(gpx_file):
+def load_gpx(gpx_file: IO) -> pd.DataFrame:
     """
     Load a GPX file and return the activity track as a DataFrame.
     :param gpx_file: GPX file object
@@ -48,14 +50,14 @@ def load_gpx(gpx_file):
     return gpx_df
 
 
-def load_fit(fit_file):
+def load_fit(fit_file: IO) -> pd.DataFrame:
     Point = namedtuple('Point', ['ts', 'lat', 'lon', 'alt', 'hr'])
     with fitparse.FitFile(fit_file, data_processor=fitparse.StandardUnitsDataProcessor()) as fit:
         data = []
         for record in fit.get_messages('record'):
             d = record.get_values()
             data.append(Point(
-                ts=d.get('timestamp').replace(tzinfo=timezone.utc),
+                ts=d.get('timestamp').replace(tzinfo=datetime.timezone.utc),
                 lat=d.get('position_lat'),
                 lon=d.get('position_long'),
                 alt=d.get('enhanced_altitude'),
@@ -65,7 +67,7 @@ def load_fit(fit_file):
     return fit_df
 
 
-def load_activities(data_dir, activities_meta, resample_freq):
+def load_activities(data_dir: str, activities_meta: pd.DataFrame, resample_freq: str) -> pd.DataFrame:
     """
     Load all Strava activities of the given type, resampled to the given frequency.
     :param data_dir: directory with strava exported data
@@ -109,7 +111,10 @@ def load_activities(data_dir, activities_meta, resample_freq):
     return activities_meta
 
 
-def normalize_timestamps(activities, timezone='America/New_York'):
+def normalize_timestamps(
+        activities: pd.DataFrame,
+        timezone: Union[str, datetime.tzinfo] = 'America/New_York'
+) -> pd.DataFrame:
     """
     Convert timestamps to the given timezone and reformat as 'HH:MM:SS'.
     :param activities: activities DataFrame
@@ -125,7 +130,7 @@ def normalize_timestamps(activities, timezone='America/New_York'):
     return activities
 
 
-def filter_activities_by_origin(activities, target, distance_mi):
+def filter_activities_by_origin(activities: pd.DataFrame, target: Tuple[float, float], distance_mi: float) -> pd.Series:
     """
     Generator for filtering activities by the lat/lon of the first tracked
     point.
