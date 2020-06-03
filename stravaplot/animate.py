@@ -145,7 +145,7 @@ def setup_animation(tracks, step_interval):
     fig = plt.figure(figsize=(5, 12))
     artists = init_artists(fig, xlim, ylim, len(tracks))
     init = partial(init_frame, artists)
-    frames = lambda: indices
+    def frames(): return indices
     update = partial(update_artists, artists, tracks)
 
     ani = FuncAnimation(
