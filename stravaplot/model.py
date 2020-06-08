@@ -67,7 +67,7 @@ def load_fit(fit_file: IO) -> pd.DataFrame:
     return fit_df
 
 
-def load_activities(data_dir: str, activities_meta: pd.DataFrame, resample_freq: str) -> pd.DataFrame:
+def load_activities(data_dir: str, activities_meta: pd.DataFrame, resample_freq: Optional[str]) -> pd.DataFrame:
     """
     Load all Strava activities of the given type, resampled to the given frequency.
     :param data_dir: directory with strava exported data
@@ -103,8 +103,9 @@ def load_activities(data_dir: str, activities_meta: pd.DataFrame, resample_freq:
             # Strip any points with unknown lat/lon
             df = df[~(df['lat'].isna() | df['lon'].isna())]
 
-            # Resample the timeseries to reduce number of animated frames
-            df = df.resample(resample_freq).nearest(limit=1)
+            if resample_freq:
+                # Resample the timeseries to reduce number of animated frames
+                df = df.resample(resample_freq).nearest(limit=1)
             tracks.append(df)
 
     activities_meta['track'] = tracks
