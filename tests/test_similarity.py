@@ -1,6 +1,6 @@
+import pandas as pd
 import pytest
 
-import stravaplot.plot as plot
 import stravaplot.similarity as similarity
 
 
@@ -27,4 +27,16 @@ def test_window(source, size, expected):
 )
 def test_common_prefix_len(a, b, expected):
     actual = similarity.common_prefix_len(a, b)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    'raw,size,expected',
+    [
+        (pd.Series(['a', 'b', 'c', 'd']), 2, {'a b', 'b c', 'c d'}),
+        (pd.Series(['a', 'b', 'b', 'a', 'b', 'c', 'd']), 3, {'a b a', 'b a b', 'a b c', 'b c d'})
+    ]
+)
+def test_make_shingles(raw, size, expected):
+    actual = similarity.make_shingles(raw, size)
     assert actual == expected
